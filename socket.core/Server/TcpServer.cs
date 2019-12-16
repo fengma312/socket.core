@@ -77,6 +77,14 @@ namespace socket.core.Server
         /// </summary>
         private int overtimecheck = 1;
         /// <summary>
+        /// TCP keepalive 心跳时间
+        /// </summary>
+        private int m_keepAliveTime;
+        /// <summary>
+        /// TCP keepalive 超时重发间隔
+        /// </summary>
+        private int m_keepAliveInterval;
+        /// <summary>
         /// 能接到最多客户端个数的原子操作
         /// </summary>
         private Semaphore m_maxNumberAcceptedClients;
@@ -204,6 +212,69 @@ namespace socket.core.Server
                 heartbeat.Start();
             }
         }
+        /// <summary>
+        /// 设置socket keepalive超时时间
+        /// </summary>       
+        /// <param name="s">要设置的socket</param>
+        /// <param name="keepAliveTime">TCP keepalive超时时间 单位毫秒</param>
+        /// <param name="keepAliveInterval">TCP keepalive超时重发时间 单位毫秒 如果keepAliveTime keepAliveInterval 都为0 则表示不开启keepalive</param>
+        public void SetKeepAlive(Socket s, int keepAliveTime, int keepAliveInterval)
+        {
+ 
+            byte[] keepalivebuffers = new byte[12];
+            int onOff = 0;
+            if (keepAliveTime == 0 || keepAliveInterval == 0)
+                onOff = 0;
+            else
+                onOff = 1;
+            BitConverter.GetBytes(onOff).CopyTo(keepalivebuffers, 0);
+            BitConverter.GetBytes(keepAliveTime).CopyTo(keepalivebuffers, 4);
+            BitConverter.GetBytes(keepAliveInterval).CopyTo(keepalivebuffers, 8);
+            s.IOControl(IOControlCode.KeepAliveValues, keepalivebuffers, null);
+        } /* method AsyncSocket SetKeepAlive */
+
+
+        /// <summary>
+        /// 启动tcp服务侦听
+        /// </summary>       
+        /// <param name="ip">监听的IP地址</param>
+        /// <param name="port">监听端口</param>
+        /// <param name="keepAliveTime">TCP keepalive超时时间 单位毫秒</param>
+        /// <param name="keepAliveInterval">TCP keepalive超时重发时间 单位毫秒</param>
+        internal void Start(IPAddress ip, int port,int keepAliveTime, int keepAliveInterval)
+        {
+            IPEndPoint localEndPoint = new IPEndPoint(ip, port);
+            m_keepAliveTime = keepAliveTime;
+            m_keepAliveInterval = keepAliveInterval;
+            //创建listens是传入的套接字。
+            listenSocket = new Socket(localEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            listenSocket.NoDelay = true;
+            //绑定端口
+            listenSocket.Bind(localEndPoint);
+            //挂起的连接队列的最大长度。
+            listenSocket.Listen(1000);
+            //在监听套接字上接受
+            StartAccept(null);
+            //发送线程
+            for (int i = 0; i < sendthread; i++)
+            {
+                Thread thread = new Thread(StartSend);
+                thread.IsBackground = true;
+                thread.Priority = ThreadPriority.AboveNormal;
+                thread.Start(i);
+            }
+            //超时机制
+            if (overtime > 0)
+            {
+                Thread heartbeat = new Thread(new ThreadStart(() =>
+                {
+                    Heartbeat();
+                }));
+                heartbeat.IsBackground = true;
+                heartbeat.Priority = ThreadPriority.Lowest;
+                heartbeat.Start();
+            }
+        }
 
         /// <summary>
         /// 超时机制
@@ -266,6 +337,8 @@ namespace socket.core.Server
             //把连接到的客户端信息添加到集合中
             ConnectClient connecttoken = new ConnectClient();
             connecttoken.socket = e.AcceptSocket;
+            //设置TCP KeepAlive超时时间
+            SetKeepAlive(connecttoken.socket, m_keepAliveTime, m_keepAliveInterval);
             //从接受端重用池获取一个新的SocketAsyncEventArgs对象
             connecttoken.saea_receive = m_receivePool.Pop();
             connecttoken.saea_receive.UserToken = connectId;
