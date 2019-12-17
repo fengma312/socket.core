@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Collections.Concurrent;
 using socket.core.Common;
+using System.Net;
 
 namespace socket.core.Server
 {
@@ -18,6 +19,14 @@ namespace socket.core.Server
         /// 基础类
         /// </summary>
         private TcpServer tcpServer;
+        /// <summary>
+        /// TCP keepalive 心跳时间
+        /// </summary>
+        private int keepAliveTime;
+        /// <summary>
+        /// TCP keepalive 超时重发间隔
+        /// </summary>
+        private int keepAliveInterval;
         /// <summary>
         /// 连接成功事件 item1:connectId
         /// </summary>
@@ -85,7 +94,21 @@ namespace socket.core.Server
             }
             tcpServer.Start(port);
         }
-
+        /// <summary>
+        /// 开启监听服务
+        /// </summary>        
+        /// <param name="ip">监听IP</param>
+        /// <param name="port">监听端口</param>
+        /// <param name="keepAliveTime">keepalive 心跳时间</param>
+        /// <param name="keepAliveInterval">keepalive 心跳超时重发时间</param>
+        public void Start(IPAddress ip, int port, int keepAliveTime, int keepAliveInterval)
+        {
+            while (tcpServer == null)
+            {
+                Thread.Sleep(10);
+            }
+            tcpServer.Start(ip, port, keepAliveTime, keepAliveInterval);
+        }
         /// <summary>
         /// 连接成功事件方法
         /// </summary>

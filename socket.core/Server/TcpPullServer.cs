@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Threading;
 using socket.core.Common;
 using System.Collections.Concurrent;
+using System.Net;
 
 namespace socket.core.Server
 {
@@ -18,6 +19,14 @@ namespace socket.core.Server
         /// 基础类
         /// </summary>
         private TcpServer tcpServer;
+        /// <summary>
+        /// TCP keepalive 心跳时间
+        /// </summary>
+        private int keepAliveTime;
+        /// <summary>
+        /// TCP keepalive 超时重发间隔
+        /// </summary>
+        private int keepAliveInterval;
         /// <summary>
         /// 连接成功事件
         /// </summary>
@@ -62,6 +71,7 @@ namespace socket.core.Server
         /// <param name="numConnections">同时处理的最大连接数</param>
         /// <param name="receiveBufferSize">用于每个套接字I/O操作的缓冲区大小(接收端)</param>
         /// <param name="overtime">超时时长,单位秒.(每10秒检查一次)，当值为0时，不设置超时</param>
+
         public TcpPullServer(int numConnections, int receiveBufferSize, int overtime)
         {
             Thread thread = new Thread(new ThreadStart(() =>
@@ -88,6 +98,21 @@ namespace socket.core.Server
                 Thread.Sleep(10);
             }
             tcpServer.Start(port);
+        }
+        /// <summary>
+        /// 开启监听服务
+        /// </summary>        
+        /// <param name="ip">监听IP</param>
+        /// <param name="port">监听端口</param>
+        /// <param name="keepAliveTime">keepalive 心跳时间</param>
+        /// <param name="keepAliveInterval">keepalive 心跳超时重发时间</param>
+        public void Start(IPAddress ip, int port, int keepAliveTime, int keepAliveInterval)
+        {
+            while (tcpServer == null)
+            {
+                Thread.Sleep(10);
+            }
+            tcpServer.Start(ip,port, keepAliveTime, keepAliveInterval);
         }
 
         /// <summary>
